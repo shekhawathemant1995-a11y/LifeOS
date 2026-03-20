@@ -942,7 +942,7 @@ const ProfileScreen = ({ theme, setTheme, userProfile }: { theme: string, setThe
   );
 };
 
-const Onboarding = ({ onFinish }: { onFinish: () => void }) => {
+const Onboarding = ({ onFinish, authError }: { onFinish: () => void, authError: string | null }) => {
   const [step, setStep] = useState(0);
   
   const steps = [
@@ -1111,6 +1111,15 @@ const Onboarding = ({ onFinish }: { onFinish: () => void }) => {
       </main>
 
       <footer className="w-full max-w-md pb-16 flex flex-col items-center gap-6">
+        {authError && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full p-4 bg-error/10 border border-error/20 rounded-xl text-error text-sm text-center font-medium"
+          >
+            {authError}
+          </motion.div>
+        )}
         <button 
           onClick={() => step < steps.length - 1 ? setStep(step + 1) : onFinish()}
           className="w-full py-5 px-8 rounded-full bg-gradient-to-br from-primary to-primary-container text-on-primary font-headline font-bold text-lg shadow-[0_10px_30px_rgba(77,166,255,0.2)] active:scale-95 transition-all duration-200"
@@ -1137,6 +1146,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [theme, setTheme] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') || 'dark';
@@ -1218,6 +1228,7 @@ export default function App() {
   }, [user]);
 
   const handleOnboardingFinish = async () => {
+    setAuthError(null);
     try {
       const loggedInUser = await signInWithGoogle();
       if (loggedInUser) {
@@ -1236,9 +1247,13 @@ export default function App() {
           });
         }
         setScreen('dashboard');
+      } else {
+        // User cancelled or closed popup
+        setAuthError("Sign-in cancelled. Please try again.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Onboarding error:", error);
+      setAuthError(error.message || "An error occurred during sign-in.");
     }
   };
 
@@ -1284,12 +1299,12 @@ export default function App() {
   }
 
   if (!user && isInitialized) {
-    return <Onboarding onFinish={handleOnboardingFinish} />;
+    return <Onboarding onFinish={handleOnboardingFinish} authError={authError} />;
   }
 
   const renderScreen = () => {
     switch (screen) {
-      case 'onboarding': return <Onboarding onFinish={handleOnboardingFinish} />;
+      case 'onboarding': return <Onboarding onFinish={handleOnboardingFinish} authError={authError} />;
       case 'dashboard': return <Dashboard setScreen={setScreen} tasks={tasks} habits={habits} transactions={transactions} userProfile={userProfile} />;
       case 'tasks': return <TasksScreen tasks={tasks} />;
       case 'habits': return <HabitsScreen habits={habits} />;
