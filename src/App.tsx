@@ -1156,6 +1156,9 @@ export default function App() {
       setIsAuthReady(true);
       if (currentUser) {
         setScreen('dashboard');
+      } else {
+        setScreen('onboarding');
+        setIsInitialized(false);
       }
     });
     return () => unsubscribe();
@@ -1223,6 +1226,7 @@ export default function App() {
         const userDoc = await getDoc(userDocRef);
         if (!userDoc.exists()) {
           await setDoc(userDocRef, {
+            uid: loggedInUser.uid,
             displayName: loggedInUser.displayName,
             email: loggedInUser.email,
             photoURL: loggedInUser.photoURL,
@@ -1309,7 +1313,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-surface">
-        {showNav && <TopBar title={screenTitles[screen] || 'LifeOS'} />}
+        {showNav && <TopBar title={screenTitles[screen] || 'LifeOS'} userImage={userProfile?.photoURL} />}
         <AnimatePresence mode="wait">
           <motion.div
             key={screen}
