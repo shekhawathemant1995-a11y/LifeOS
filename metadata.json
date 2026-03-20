@@ -1,5 +1,5 @@
 {
   "name": "LifeOS",
   "description": "AI-powered personal productivity and finance tracker",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["geolocation"]
 }

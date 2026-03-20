@@ -61,6 +61,20 @@ rules_version = '2';
 //   - insights: bool (optional) - Whether it contains insights
 //   - createdAt: string (required, immutable) - Creation timestamp
 //
+// Collection: goals
+// Document ID: {goalId}
+// Fields:
+//   - uid: string (required, immutable) - Owner UID
+//   - title: string (required) - Goal title
+//   - category: string (required) - Goal category
+//   - progress: number (optional) - Current progress
+//   - target: number (required) - Target value
+//   - unit: string (required) - Unit of measurement
+//   - status: string (required, enum: ['In Progress', 'Active', 'Completed']) - Goal status
+//   - nextMilestone: string (optional) - Next milestone
+//   - icon: string (optional) - Icon name
+//   - createdAt: string/timestamp (optional, immutable) - Creation timestamp
+//
 // ===============================================================
 
 service cloud.firestore {
@@ -120,59 +134,98 @@ service cloud.firestore {
       return date is timestamp || (date is string && date.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$"));
     }
 
+    function isRecent(date) {
+      return date is timestamp &&
+        date >= request.time - duration.value(5, 'm') &&
+        date <= request.time + duration.value(5, 'm');
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
 
     function isValidUser(data) {
       return hasRequiredFields(['uid', 'email']) &&
-             data.uid is string && data.uid.size() > 0 &&
+             hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'theme', 'streak', 'productivityScore', 'plan', 'createdAt', 'role', 'phone', 'hideEmail']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
-             (!('theme' in data) || data.theme is string) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500)) &&
+             (!('theme' in data) || (data.theme is string && data.theme.size() < 50)) &&
              (!('streak' in data) || data.streak is number) &&
              (!('productivityScore' in data) || data.productivityScore is number) &&
-             (!('plan' in data) || data.plan is string) &&
-             (!('createdAt' in data) || isValidDate(data.createdAt));
+             (!('plan' in data) || (data.plan is string && data.plan.size() < 50)) &&
+             (!('createdAt' in data) || isValidDate(data.createdAt)) &&
+             (!('role' in data) || (data.role is string && data.role in ['admin', 'user'])) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
+             (!('hideEmail' in data) || data.hideEmail is bool);
     }
 
     function isValidTask(data) {
       return hasRequiredFields(['uid', 'title', 'priority', 'completed', 'createdAt']) &&
+             hasOnlyAllowedFields(['uid', 'title', 'priority', 'completed', 'createdAt', 'dueDate', 'category', 'time']) &&
              data.uid is string && data.uid == request.auth.uid &&
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.priority in ['high', 'medium', 'low'] &&
              data.completed is bool &&
              (!('dueDate' in data) || isValidDate(data.dueDate)) &&
+             (!('category' in data) || (data.category is string && data.category.size() < 100)) &&
+             (!('time' in data) || (data.time is string && data.time.size() < 100)) &&
              isValidDate(data.createdAt);
     }
 
     function isValidHabit(data) {
       return hasRequiredFields(['uid', 'title', 'icon', 'target', 'unit']) &&
+             hasOnlyAllowedFields(['uid', 'title', 'icon', 'target', 'unit', 'frequency', 'time', 'streak', 'progress', 'lastUpdated', 'createdAt']) &&
              data.uid is string && data.uid == request.auth.uid &&
              data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
-             data.icon is string &&
+             data.icon is string && data.icon.size() < 100 &&
              data.target is number && data.target > 0 &&
-             data.unit is string &&
+             data.unit is string && data.unit.size() < 50 &&
+             (!('frequency' in data) || (data.frequency is string && data.frequency.size() < 50)) &&
+             (!('time' in data) || (data.time is string && data.time.size() < 50)) &&
              (!('streak' in data) || data.streak is number) &&
              (!('progress' in data) || data.progress is number) &&
-             (!('lastUpdated' in data) || isValidDate(data.lastUpdated));
+             (!('lastUpdated' in data) || isValidDate(data.lastUpdated)) &&
+             (!('createdAt' in data) || isValidDate(data.createdAt));
     }
 
     function isValidTransaction(data) {
       return hasRequiredFields(['uid', 'merchant', 'category', 'amount', 'type', 'date']) &&
+             hasOnlyAllowedFields(['uid', 'merchant', 'category', 'amount', 'type', 'date', 'time', 'icon', 'createdAt']) &&
              data.uid is string && data.uid == request.auth.uid &&
-             data.merchant is string && data.merchant.size() > 0 &&
-             data.category is string &&
+             data.merchant is string && data.merchant.size() > 0 && data.merchant.size() < 200 &&
+             data.category is string && data.category.size() < 100 &&
              data.amount is number &&
              data.type in ['expense', 'income'] &&
-             isValidDate(data.date);
+             isValidDate(data.date) &&
+             (!('time' in data) || (data.time is string && data.time.size() < 100)) &&
+             (!('icon' in data) || (data.icon is string && data.icon.size() < 100)) &&
+             (!('createdAt' in data) || isValidDate(data.createdAt));
     }
 
     function isValidAIMessage(data) {
       return hasRequiredFields(['uid', 'role', 'text', 'createdAt']) &&
+             hasOnlyAllowedFields(['uid', 'role', 'text', 'createdAt', 'time', 'insights']) &&
              data.uid is string && data.uid == request.auth.uid &&
              data.role in ['user', 'ai'] &&
-             data.text is string && data.text.size() > 0 &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 5000 &&
              isValidDate(data.createdAt);
+    }
+
+    function isValidGoal(data) {
+      return hasRequiredFields(['uid', 'title', 'category', 'target', 'unit', 'status']) &&
+             hasOnlyAllowedFields(['uid', 'title', 'category', 'target', 'unit', 'status', 'progress', 'nextMilestone', 'icon', 'createdAt']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.category is string && data.category.size() < 100 &&
+             data.target is number && data.target > 0 &&
+             data.unit is string && data.unit.size() < 50 &&
+             data.status in ['In Progress', 'Active', 'Completed'] &&
+             (!('progress' in data) || data.progress is number) &&
+             (!('nextMilestone' in data) || (data.nextMilestone is string && data.nextMilestone.size() < 500)) &&
+             (!('icon' in data) || (data.icon is string && data.icon.size() < 100)) &&
+             (!('createdAt' in data) || isValidDate(data.createdAt));
     }
 
     // ===============================================================
@@ -211,6 +264,13 @@ service cloud.firestore {
       allow read: if isDocOwner() || isAdmin();
       allow create: if isAuthenticated() && isValidAIMessage(request.resource.data);
       allow update: if isDocOwner() && isValidAIMessage(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /goals/{goalId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidGoal(request.resource.data);
+      allow update: if isDocOwner() && isValidGoal(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
     }
   }

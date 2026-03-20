@@ -76,6 +76,24 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
       },
       "required": ["uid", "role", "text", "createdAt"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "A long-term strategic goal",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner UID" },
+        "title": { "type": "string", "description": "Goal title" },
+        "category": { "type": "string", "description": "Goal category" },
+        "progress": { "type": "number", "description": "Current progress" },
+        "target": { "type": "number", "description": "Target value" },
+        "unit": { "type": "string", "description": "Unit of measurement" },
+        "status": { "type": "string", "enum": ["In Progress", "Active", "Completed"], "description": "Goal status" },
+        "nextMilestone": { "type": "string", "description": "Next milestone description" },
+        "icon": { "type": "string", "description": "Icon name" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "title", "category", "target", "unit", "status"]
     }
   },
   "firestore": {
@@ -83,6 +101,7 @@
     "tasks": { "schema": "Task", "description": "User tasks" },
     "habits": { "schema": "Habit", "description": "User habits" },
     "transactions": { "schema": "Transaction", "description": "User financial transactions" },
-    "ai_messages": { "schema": "AIMessage", "description": "AI chat history" }
+    "ai_messages": { "schema": "AIMessage", "description": "AI chat history" },
+    "goals": { "schema": "Goal", "description": "User strategic goals" }
   }
 }
