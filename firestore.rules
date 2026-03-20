@@ -1,0 +1,217 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId}
+// Fields:
+//   - uid: string (required, immutable) - User UID
+//   - email: string (required, immutable) - User email
+//   - displayName: string (optional) - User display name
+//   - photoURL: string (optional) - User photo URL
+//   - theme: string (optional) - Selected theme ID
+//   - streak: number (optional) - Current habit streak
+//   - productivityScore: number (optional) - Weekly productivity score
+//   - plan: string (optional) - Subscription plan
+//   - createdAt: string (optional, immutable) - Account creation date
+//
+// Collection: tasks
+// Document ID: {taskId}
+// Fields:
+//   - uid: string (required, immutable) - Owner UID
+//   - title: string (required) - Task title
+//   - priority: string (required, enum: ['high', 'medium', 'low']) - Task priority
+//   - completed: bool (required) - Completion status
+//   - dueDate: string/timestamp (optional) - Task due date
+//   - createdAt: string/timestamp (required, immutable) - Creation timestamp
+//
+// Collection: habits
+// Document ID: {habitId}
+// Fields:
+//   - uid: string (required, immutable) - Owner UID
+//   - title: string (required) - Habit title
+//   - icon: string (required) - Icon name
+//   - frequency: string (optional) - Frequency
+//   - time: string (optional) - Time of day
+//   - streak: number (optional) - Current streak
+//   - progress: number (optional) - Current progress
+//   - target: number (required) - Target value
+//   - unit: string (required) - Unit of measurement
+//   - lastUpdated: string (optional) - Last check-in timestamp
+//
+// Collection: transactions
+// Document ID: {transactionId}
+// Fields:
+//   - uid: string (required, immutable) - Owner UID
+//   - merchant: string (required) - Merchant name
+//   - category: string (required) - Transaction category
+//   - amount: number (required) - Transaction amount
+//   - type: string (required, enum: ['expense', 'income']) - Transaction type
+//   - date: string (required) - Transaction date
+//
+// Collection: ai_messages
+// Document ID: {messageId}
+// Fields:
+//   - uid: string (required, immutable) - Owner UID
+//   - role: string (required, enum: ['user', 'ai']) - Message sender
+//   - text: string (required) - Message content
+//   - time: string (optional) - Display time
+//   - insights: bool (optional) - Whether it contains insights
+//   - createdAt: string (required, immutable) - Creation timestamp
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "hemants.shekhawat18@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) ||
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) ||
+        request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidDate(date) {
+      return date is timestamp || (date is string && date.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('theme' in data) || data.theme is string) &&
+             (!('streak' in data) || data.streak is number) &&
+             (!('productivityScore' in data) || data.productivityScore is number) &&
+             (!('plan' in data) || data.plan is string) &&
+             (!('createdAt' in data) || isValidDate(data.createdAt));
+    }
+
+    function isValidTask(data) {
+      return hasRequiredFields(['uid', 'title', 'priority', 'completed', 'createdAt']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.priority in ['high', 'medium', 'low'] &&
+             data.completed is bool &&
+             (!('dueDate' in data) || isValidDate(data.dueDate)) &&
+             isValidDate(data.createdAt);
+    }
+
+    function isValidHabit(data) {
+      return hasRequiredFields(['uid', 'title', 'icon', 'target', 'unit']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
+             data.icon is string &&
+             data.target is number && data.target > 0 &&
+             data.unit is string &&
+             (!('streak' in data) || data.streak is number) &&
+             (!('progress' in data) || data.progress is number) &&
+             (!('lastUpdated' in data) || isValidDate(data.lastUpdated));
+    }
+
+    function isValidTransaction(data) {
+      return hasRequiredFields(['uid', 'merchant', 'category', 'amount', 'type', 'date']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.merchant is string && data.merchant.size() > 0 &&
+             data.category is string &&
+             data.amount is number &&
+             data.type in ['expense', 'income'] &&
+             isValidDate(data.date);
+    }
+
+    function isValidAIMessage(data) {
+      return hasRequiredFields(['uid', 'role', 'text', 'createdAt']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.role in ['user', 'ai'] &&
+             data.text is string && data.text.size() > 0 &&
+             isValidDate(data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified();
+      allow delete: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidTask(request.resource.data);
+      allow update: if isDocOwner() && isValidTask(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /habits/{habitId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidHabit(request.resource.data);
+      allow update: if isDocOwner() && isValidHabit(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidTransaction(request.resource.data);
+      allow update: if isDocOwner() && isValidTransaction(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /ai_messages/{messageId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidAIMessage(request.resource.data);
+      allow update: if isDocOwner() && isValidAIMessage(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+  }
+}
