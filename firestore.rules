@@ -51,16 +51,6 @@ rules_version = '2';
 //   - type: string (required, enum: ['expense', 'income']) - Transaction type
 //   - date: string (required) - Transaction date
 //
-// Collection: ai_messages
-// Document ID: {messageId}
-// Fields:
-//   - uid: string (required, immutable) - Owner UID
-//   - role: string (required, enum: ['user', 'ai']) - Message sender
-//   - text: string (required) - Message content
-//   - time: string (optional) - Display time
-//   - insights: bool (optional) - Whether it contains insights
-//   - createdAt: string (required, immutable) - Creation timestamp
-//
 // Collection: goals
 // Document ID: {goalId}
 // Fields:
@@ -112,6 +102,11 @@ service cloud.firestore {
         request.resource.data.uid == resource.data.uid;
     }
 
+    function roleUnchanged() {
+      return !('role' in request.resource.data) ||
+        request.resource.data.role == resource.data.role;
+    }
+
     function hasOnlyAllowedFields(fields) {
       return request.resource.data.keys().hasOnly(fields);
     }
@@ -146,7 +141,7 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return hasRequiredFields(['uid', 'email']) &&
-             hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'theme', 'streak', 'productivityScore', 'plan', 'createdAt', 'role', 'phone', 'hideEmail']) &&
+             hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'theme', 'streak', 'productivityScore', 'plan', 'createdAt', 'role', 'phone', 'hideEmail', 'monthlyBudget']) &&
              data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
@@ -158,7 +153,8 @@ service cloud.firestore {
              (!('createdAt' in data) || isValidDate(data.createdAt)) &&
              (!('role' in data) || (data.role is string && data.role in ['admin', 'user'])) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
-             (!('hideEmail' in data) || data.hideEmail is bool);
+             (!('hideEmail' in data) || data.hideEmail is bool) &&
+             (!('monthlyBudget' in data) || data.monthlyBudget is number);
     }
 
     function isValidTask(data) {
@@ -204,15 +200,6 @@ service cloud.firestore {
              (!('createdAt' in data) || isValidDate(data.createdAt));
     }
 
-    function isValidAIMessage(data) {
-      return hasRequiredFields(['uid', 'role', 'text', 'createdAt']) &&
-             hasOnlyAllowedFields(['uid', 'role', 'text', 'createdAt', 'time', 'insights']) &&
-             data.uid is string && data.uid == request.auth.uid &&
-             data.role in ['user', 'ai'] &&
-             data.text is string && data.text.size() > 0 && data.text.size() < 5000 &&
-             isValidDate(data.createdAt);
-    }
-
     function isValidGoal(data) {
       return hasRequiredFields(['uid', 'title', 'category', 'target', 'unit', 'status']) &&
              hasOnlyAllowedFields(['uid', 'title', 'category', 'target', 'unit', 'status', 'progress', 'nextMilestone', 'icon', 'createdAt']) &&
@@ -235,7 +222,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified();
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() && (roleUnchanged() || isAdmin());
       allow delete: if isAdmin();
     }
 
@@ -257,13 +244,6 @@ service cloud.firestore {
       allow read: if isDocOwner() || isAdmin();
       allow create: if isAuthenticated() && isValidTransaction(request.resource.data);
       allow update: if isDocOwner() && isValidTransaction(request.resource.data) && uidNotModified();
-      allow delete: if isDocOwner() || isAdmin();
-    }
-
-    match /ai_messages/{messageId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && isValidAIMessage(request.resource.data);
-      allow update: if isDocOwner() && isValidAIMessage(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
     }
 

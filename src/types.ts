@@ -1,5 +1,5 @@
 
-export type Screen = 'onboarding' | 'dashboard' | 'tasks' | 'habits' | 'finance' | 'ai' | 'profile' | 'goals' | 'analytics';
+export type Screen = 'onboarding' | 'auth' | 'dashboard' | 'tasks' | 'habits' | 'finance' | 'profile' | 'goals' | 'analytics';
 
 export interface Task {
   id: string;
@@ -54,14 +54,4 @@ export interface Transaction {
   icon: string;
   date?: string;
   createdAt?: any;
-}
-
-export interface AIMessage {
-  id: string;
-  uid: string;
-  role: 'user' | 'ai';
-  text: string;
-  time: string;
-  createdAt: any;
-  insights?: boolean;
 }
