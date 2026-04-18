@@ -25,12 +25,26 @@ export default function SignIn({ onNavigate }: { onNavigate: (path: string) => v
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError(null);
+    console.log("Initiating Google Sign-In...");
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      // Inform users about authorized domains if they are in the preview environment
+      const result = await signInWithPopup(auth, provider);
+      console.log("Google Sign-In successful:", result.user.email);
       onNavigate('/');
     } catch (err: any) {
-      setError(err.message);
+      console.error("Google Sign-In Error:", err.code, err.message);
+      
+      let friendlyMessage = err.message;
+      if (err.code === 'auth/unauthorized-domain') {
+        friendlyMessage = "This domain is not authorized in Firebase. Please add this URL to your Authorized Domains in the Firebase Console.";
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        friendlyMessage = "The login popup was closed before completion. Please try again.";
+      } else if (err.code === 'auth/popup-blocked') {
+        friendlyMessage = "The login popup was blocked by your browser. Please allow popups for this site.";
+      }
+      
+      setError(friendlyMessage);
       setLoading(false);
     }
   };

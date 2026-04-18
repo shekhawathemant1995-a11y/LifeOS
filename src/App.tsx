@@ -2472,6 +2472,10 @@ export default function App() {
           }
         }
         setScreen('dashboard');
+      } else {
+        // Redirect to login if signed out
+        setScreen('auth');
+        setAuthMode('signin');
       }
     });
 
