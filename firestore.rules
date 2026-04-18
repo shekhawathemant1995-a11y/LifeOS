@@ -83,7 +83,7 @@ service cloud.firestore {
     }
 
     function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.uid;
+      return isAuthenticated() && resource != null && request.auth.uid == resource.data.uid;
     }
 
     function isAdmin() {

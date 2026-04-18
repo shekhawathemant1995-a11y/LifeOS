@@ -2443,14 +2443,35 @@ export default function App() {
     };
     testConnection();
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setIsAuthReady(true);
       if (firebaseUser) {
+        // Automatically create user profile if it doesn't exist
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          try {
+            await setDoc(userDocRef, {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || 'New User',
+              photoURL: firebaseUser.photoURL || '',
+              theme: 'dark',
+              streak: 0,
+              productivityScore: 0,
+              plan: 'Free',
+              createdAt: new Date().toISOString(),
+              role: 'user',
+              monthlyBudget: 5000,
+              hideEmail: false
+            });
+          } catch (error) {
+            console.error("Error creating user profile:", error);
+          }
+        }
         setScreen('dashboard');
-      } else {
-        // Only reset if we were previously logged in or explicitly signed out
-        // For now, we'll keep it simple
       }
     });
 
